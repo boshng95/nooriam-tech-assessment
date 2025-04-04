@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
 from sqlmodel import Session
+from fastapi import WebSocket
 
 from app.core import security
 from app.core.config import settings
@@ -55,3 +56,31 @@ def get_current_active_superuser(current_user: CurrentUser) -> User:
             status_code=403, detail="The user doesn't have enough privileges"
         )
     return current_user
+
+
+async def get_current_user_ws(websocket: WebSocket, session: SessionDep) -> User:
+    await websocket.accept()
+    try:
+        token = websocket.query_params['token']
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
+        )
+        token_data = TokenPayload(**payload)
+    except (KeyError, InvalidTokenError, ValidationError):
+        await websocket.send_text('Could not validate credentials')
+        await websocket.close()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Could not validate credentials",
+        )
+    user = session.get(User, token_data.sub)
+    if not user:
+        await websocket.send_text('User not found')
+        await websocket.close()
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.is_active:
+        await websocket.send_text('Inactive user')
+        await websocket.close()
+        raise HTTPException(status_code=400, detail="Inactive user")
+
+CurrentUserWS = Annotated[User, Depends(get_current_user_ws)]

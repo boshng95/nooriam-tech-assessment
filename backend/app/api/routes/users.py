@@ -13,6 +13,7 @@ from sqlmodel import col, delete, func, select
 from app import crud
 from app.api.deps import (
     CurrentUser,
+    CurrentUserWS,
     SessionDep,
     get_current_active_superuser,
 )
@@ -145,10 +146,12 @@ def delete_user_me(session: SessionDep, current_user: CurrentUser) -> Any:
     session.commit()
     return Message(message="User deleted successfully")
 
-
 @router.websocket('/signup/ws')
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
+async def websocket_endpoint(
+    websocket: WebSocket,
+    session: SessionDep,
+    current_ws_user: CurrentUserWS,
+):
     active_connections.append(websocket)
     try:
         while True:

@@ -1,11 +1,44 @@
+import { useEffect } from 'react'
 import { Flex, Image, useBreakpointValue } from "@chakra-ui/react"
 import { Link } from "@tanstack/react-router"
 
 import Logo from "/assets/images/fastapi-logo.svg"
 import UserMenu from "./UserMenu"
+import { ToastContainer, toast, Zoom } from 'react-toastify';
 
 function Navbar() {
   const display = useBreakpointValue({ base: "none", md: "flex" })
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      console.error("No token found");
+      return;
+    }
+
+    const ws = new WebSocket(
+      `ws://localhost:8000/api/v1/users/signup/ws?token=${token}`
+    )
+
+    ws.onmessage = (event) => {
+      console.log("Message from WebSocket:", event.data);
+      toast.success(event.data, {
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: false,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Zoom,
+      });
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   return (
     <Flex
@@ -25,6 +58,19 @@ function Navbar() {
       <Flex gap={2} alignItems="center">
         <UserMenu />
       </Flex>
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick={false}
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="dark"
+        transition={Zoom}
+      />
     </Flex>
   )
 }
