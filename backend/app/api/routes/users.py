@@ -1,7 +1,13 @@
 import uuid
-from typing import Any
+from typing import Any, List, Dict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import (
+  APIRouter,
+  Depends,
+  HTTPException,
+  WebSocket,
+  WebSocketDisconnect,
+)
 from sqlmodel import col, delete, func, select
 
 from app import crud
@@ -27,7 +33,8 @@ from app.models import (
 from app.utils import generate_new_account_email, send_email
 
 router = APIRouter(prefix="/users", tags=["users"])
-
+# Store active WebSocket connections
+active_connections: List[WebSocket] = []
 
 @router.get(
     "/",
@@ -139,8 +146,25 @@ def delete_user_me(session: SessionDep, current_user: CurrentUser) -> Any:
     return Message(message="User deleted successfully")
 
 
+@router.websocket('/signup/ws')
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.append(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # Keep the connection alive
+    except WebSocketDisconnect:
+        active_connections.remove(websocket)
+
+async def send_to_ws(message):
+    for connection in active_connections:
+        try:
+            await connection.send_text(message)  # ✅ Use await here!
+        except Exception as e:
+            print(f"Error sending data: {e}")
+
 @router.post("/signup", response_model=UserPublic)
-def register_user(session: SessionDep, user_in: UserRegister) -> Any:
+async def register_user(session: SessionDep, user_in: UserRegister) -> Any:
     """
     Create new user without the need to be logged in.
     """
@@ -152,6 +176,8 @@ def register_user(session: SessionDep, user_in: UserRegister) -> Any:
         )
     user_create = UserCreate.model_validate(user_in)
     user = crud.create_user(session=session, user_create=user_create)
+    if user:
+        await send_to_ws(f'{user.email} <{user.full_name}> is created!')
     return user
 
 
