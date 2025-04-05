@@ -6,6 +6,8 @@ import Logo from "/assets/images/fastapi-logo.svg"
 import UserMenu from "./UserMenu"
 import { ToastContainer, toast, Zoom } from 'react-toastify';
 
+const WS_BASE = import.meta.env.VITE_WS_URL
+
 function Navbar() {
   const display = useBreakpointValue({ base: "none", md: "flex" })
 
@@ -17,11 +19,10 @@ function Navbar() {
     }
 
     const ws = new WebSocket(
-      `ws://localhost:8000/api/v1/users/signup/ws?token=${token}`
+      `${WS_BASE}/api/v1/users/signup/ws?token=${token}`
     )
 
     ws.onmessage = (event) => {
-      console.log("Message from WebSocket:", event.data);
       toast.success(event.data, {
         position: "top-right",
         autoClose: 5000,
